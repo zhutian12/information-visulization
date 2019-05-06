@@ -1,0 +1,145 @@
+---
+title: "Viz3getdata"
+output:
+  html_document:
+    df_print: paged
+author:  Tian Zhu
+---
+```{r}
+#Install packages
+library(tidyverse)
+library(leaflet)
+library(WDI)
+library(stringr)
+library(lubridate)
+library(ggplot2)
+library(ggpubr)
+library(plotly)
+```
+
+```{r}
+#retrieve data from WDI
+
+birth <- "SP.DYN.CBRT.IN"
+infmort <- "SP.DYN.IMRT.IN"
+net <-"IT.NET.USER.ZS"
+lifeexp <- "SP.DYN.LE00.IN"
+forest <- "AG.LND.FRST.ZS"
+mobile <- "IT.CEL.SETS.P2"
+pop <- "SP.POP.TOTL"
+tour <- "ST.INT.RCPT.CD"
+import <- "TM.VAL.MRCH.XD.WD"
+export <- "TX.VAL.MRCH.XD.WD"
+
+# create a vector of the desired indicator series
+indicators <- c(birth, infmort, net, lifeexp, forest,
+                mobile, pop, tour, import, export)
+
+countries <- WDI(country="all", indicator = indicators, 
+     start = 1998, end = 2018, extra = TRUE)
+
+## rename columns for each of reference
+countries <- rename(countries, birth = SP.DYN.CBRT.IN, 
+       infmort = SP.DYN.IMRT.IN, net  = IT.NET.USER.ZS,
+       lifeexp = SP.DYN.LE00.IN, forest = AG.LND.FRST.ZS,
+       mobile = IT.CEL.SETS.P2, pop = SP.POP.TOTL, 
+       tour = ST.INT.RCPT.CD, import = TM.VAL.MRCH.XD.WD,
+       export = TX.VAL.MRCH.XD.WD)
+
+# convert geocodes from factors into numerics
+
+countries$lng <- as.numeric(as.character(countries$longitude))
+countries$lat <- as.numeric(as.character(countries$latitude))
+
+# Remove groupings, which have no geocodes
+countries <- countries %>%
+   filter(!is.na(lng))
+```
+
+```{r}
+#View the data
+View(countries)
+```
+
+
+#Assignment 2 plot update: Here I updated the plot for assignment 2. Dataset is very similar with dataset in assignment 2 except the variable format differences such as "year" variable in this assignment is not in yy/mm/year format but instead it only shows year. Meanwhile, the year ranges from 1998 to 2018 instead of 2004 to 2010 in assignment. Comparing two plots,I find the overall trend for two plots is same. Life expectance for each region is raising. Infant mortality and Birthrate for each region are decreasing. 
+```{r}
+wi2 <- select(countries, c("birth", "lifeexp", "infmort", "region", "year"))
+wi2$birth <- as.numeric(wi2$birth)
+wi2$im <- as.numeric(wi2$infmort)
+wi2$life <- as.numeric(wi2$`lifeexp`)
+#### Convert Year to numeric year
+wi2$Region <- as.factor(wi2$region)
+###############  Now summarize average rates by region
+wi3 <- wi2 %>%
+     group_by(Region, year) %>%
+     summarize(birthrate = mean(birth, na.rm = T),
+               life_exp = mean(life, na.rm = T), 
+               infant = mean(im, na.rm = T))
+View(wi3)
+###########  NOW make your plots
+wi.birthrate <- ggplot(wi3, aes(x = year, y=birthrate)) + 
+  geom_line(size = 1.5, colour = "red1") + labs(x = "Year", y = "Birthrate%") + ggtitle("Birthrate for six regions")  + 
+  theme_classic() + theme(plot.title = element_text(color = "red1", size = 10, face = "bold")) +
+  theme(strip.text.x = element_text(size = 5), plot.title = element_text(color = "red1", size = 10, face = "bold"))  + theme( axis.text.x = element_text(angle=90))+ 
+  facet_grid(cols = vars(Region)) 
+
+ggplotly(wi.birthrate)
+
+wi.life_exp <- ggplot(wi3, aes(x = year, y=life_exp)) + 
+  geom_line(size = 1.5, colour = "grey40") + labs(x = "Year", y = "Life Expectance") + ggtitle("Life expectance for six regions")  + 
+  theme_classic()+ theme(panel.background = element_rect(fill = "grey98", colour = "grey98")) +  
+  theme(strip.text.x = element_text(size = 5), plot.title = element_text(color = "red1", size = 10, face = "bold")) + theme( axis.text.x = element_text(angle=90))+
+  facet_grid(cols = vars(Region))
+
+wi.infantmortality <- ggplot(wi3, aes(x = year, y=infant)) + 
+  geom_line(size = 1.5, colour = "steelblue2") + labs(x = "Year", y = "infant mortality%") + ggtitle("infant mortality for six regions")  + 
+  theme_classic()+ theme(panel.background = element_rect(fill = "grey98", colour = "grey98")) +  
+  theme(strip.text.x = element_text(size = 5), plot.title = element_text(color = "red1", size = 10, face = "bold")) + 
+  theme(axis.text.x = element_text(angle=90)) + 
+  facet_grid(cols = vars(Region))
+
+combination <- ggarrange(wi.life_exp, wi.birthrate, wi.infantmortality,
+                         ncol = 1, nrow = 3)
+
+annotate_figure(combination,
+                top = text_grob("Human Well-Being of the World", color = "Black", face = "bold", size = 14))
+
+ggplotly(combination)
+
+
+
+
+
+
+```
+
+#For this world map, I used data where year was 1998. First, I selected six variables from "countries" dataframe and I filter the year so that it only showed year 1998. For the map, I made circlemarkers and placed them at the location of each country's capital. Here, I wanted to use the gradient color to show the population density and the size of circle to show the percentage of individual using the internet. I used "Reds" as my graident color, the darker the red, the larger the population was. And larger circle means that country had higher percentage of internet coverage. For the tiles, I used "Stamen.TerrainBackground" since the color of the background made circlemarkers easier to see. I set view at China, made radius equal to net, made opacity equal to 0.5 since there were too many points, set the color and legend, and finally set the popup as capital.
+#As we can see in this worldmap, Beijing, New Delhi, Washington D.c, Jakarta which are the capital of China, India, US, Indonesia apparently have darker red color comparing with other capitals which mean they have much higher population numbers. However, from the size of the circle, we can tell that besides US, other three countries' internet service were not popularized. In fact, it is very hard to find China, India and Indonesia in this map because the size of the circle is too small, and it was apprently to see that high internet coverage countries are concentrated in western countries.
+```{r}
+#world map
+wi4 <- select(countries, c("country", "capital", "year", "pop", "lng", "lat", "net")) %>% filter(year == "1998") 
+pal1 <- colorNumeric(palette = "Reds", domain = wi4$pop/1000000)
+map1 <- leaflet(wi4)%>%
+        addProviderTiles("Stamen.TerrainBackground") %>% setView(lng = 116.286000, lat = 40.049500, zoom = 2) %>%
+        addCircleMarkers(~lng, ~lat, radius = ~ net*3, stroke = FALSE, fillOpacity = 0.5, color = ~pal1(wi4$pop/1000000), popup = ~paste0(capital, "<br/>", round(net), 2)) %>% addLegend(position = "topright",
+          pal = pal1, values = wi4$pop/1000000,
+          title = "Population (millions)",
+          opacity = 0.5)
+map1
+```
+
+#For this datamap, I used data where year was 2016 because 2016 data had less NAs comparing with 2017 data. Other coding part is pretty similar. Comparing two graphes, I found that China, India, US, Indonesia are still the countries have the most populations. And from the 2016 graph, we can see that almost every country had gained population. The big difference here is the internet coverage. In 1998 data, most high internet coverage countries were western countries. However, in 2016, the middle part of the map is fully covered by circles which means more and more countries had medium to high internet coverage, some Asia countries such as India, China, Kazakhstan which were from very low internet coverage to high internet coverage.  
+```{r}
+wi5 <- select(countries, c("country", "capital", "year", "pop", "lng", "lat", "net")) %>% filter(year == "2016") %>% drop_na(pop, net)
+pal2 <- colorNumeric(palette = "Reds", domain = wi5$pop/1000000)
+map2 <- leaflet(wi5)%>%
+        addProviderTiles("Stamen.TerrainBackground") %>% setView(lng = 116.286000, lat = 40.049500, zoom = 2) %>%
+        addCircleMarkers(~lng, ~lat, radius = ~ net/3, stroke = FALSE, fillOpacity = 0.5, color = ~pal2(wi5$pop/1000000), popup = ~capital) %>% addLegend(position = "topright",
+          pal = pal2, values = wi5$pop/1000000,
+          title = "Population (millions)",
+          opacity = 1
+          )
+map2
+```
+
